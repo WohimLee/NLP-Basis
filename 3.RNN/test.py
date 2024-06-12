@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 from torch.utils.data import  Dataset,DataLoader
 import os
+
+from transformers import BertModel
+
 def read_data(path,num=None):
     with open(path,encoding="utf-8") as f:
         all_data = f.read().split("\n")
@@ -52,6 +55,8 @@ class MyDataset(Dataset):
 
     def __len__(self):
         return len(self.all_text)
+
+nn.RNNBase
 
 class MyRNN(nn.Module):
     def __init__(self,input_size,hidden_size,batch_first=False):
@@ -157,3 +162,5 @@ if __name__ == "__main__":
 
         acc = right_num / len(test_dataset)
         print(acc)
+        
+        nn.RNNBase

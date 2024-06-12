@@ -10,140 +10,12 @@ from torch.nn.utils.rnn import PackedSequence
 from torch import _VF
 
 class GRU(RNNBase):
-    r"""__init__(self,input_size,hidden_size,num_layers=1,bias=True,batch_first=False,dropout=0.0,bidirectional=False,device=None,dtype=None)
-
-    Applies a multi-layer gated recurrent unit (GRU) RNN to an input sequence.
-
-    For each element in the input sequence, each layer computes the following
-    function:
-
-    .. math::
-        \begin{array}{ll}
-            r_t = \sigma(W_{ir} x_t + b_{ir} + W_{hr} h_{(t-1)} + b_{hr}) \\
-            z_t = \sigma(W_{iz} x_t + b_{iz} + W_{hz} h_{(t-1)} + b_{hz}) \\
-            n_t = \tanh(W_{in} x_t + b_{in} + r_t * (W_{hn} h_{(t-1)}+ b_{hn})) \\
-            h_t = (1 - z_t) * n_t + z_t * h_{(t-1)}
-        \end{array}
-
-    where :math:`h_t` is the hidden state at time `t`, :math:`x_t` is the input
-    at time `t`, :math:`h_{(t-1)}` is the hidden state of the layer
-    at time `t-1` or the initial hidden state at time `0`, and :math:`r_t`,
-    :math:`z_t`, :math:`n_t` are the reset, update, and new gates, respectively.
-    :math:`\sigma` is the sigmoid function, and :math:`*` is the Hadamard product.
-
-    In a multilayer GRU, the input :math:`x^{(l)}_t` of the :math:`l` -th layer
-    (:math:`l \ge 2`) is the hidden state :math:`h^{(l-1)}_t` of the previous layer multiplied by
-    dropout :math:`\delta^{(l-1)}_t` where each :math:`\delta^{(l-1)}_t` is a Bernoulli random
-    variable which is :math:`0` with probability :attr:`dropout`.
-
-    Args:
-        input_size: The number of expected features in the input `x`
-        hidden_size: The number of features in the hidden state `h`
-        num_layers: Number of recurrent layers. E.g., setting ``num_layers=2``
-            would mean stacking two GRUs together to form a `stacked GRU`,
-            with the second GRU taking in outputs of the first GRU and
-            computing the final results. Default: 1
-        bias: If ``False``, then the layer does not use bias weights `b_ih` and `b_hh`.
-            Default: ``True``
-        batch_first: If ``True``, then the input and output tensors are provided
-            as `(batch, seq, feature)` instead of `(seq, batch, feature)`.
-            Note that this does not apply to hidden or cell states. See the
-            Inputs/Outputs sections below for details.  Default: ``False``
-        dropout: If non-zero, introduces a `Dropout` layer on the outputs of each
-            GRU layer except the last layer, with dropout probability equal to
-            :attr:`dropout`. Default: 0
-        bidirectional: If ``True``, becomes a bidirectional GRU. Default: ``False``
-
-    Inputs: input, h_0
-        * **input**: tensor of shape :math:`(L, H_{in})` for unbatched input,
-          :math:`(L, N, H_{in})` when ``batch_first=False`` or
-          :math:`(N, L, H_{in})` when ``batch_first=True`` containing the features of
-          the input sequence.  The input can also be a packed variable length sequence.
-          See :func:`torch.nn.utils.rnn.pack_padded_sequence` or
-          :func:`torch.nn.utils.rnn.pack_sequence` for details.
-        * **h_0**: tensor of shape :math:`(D * \text{num\_layers}, H_{out})` or
-          :math:`(D * \text{num\_layers}, N, H_{out})`
-          containing the initial hidden state for the input sequence. Defaults to zeros if not provided.
-
-        where:
-
-        .. math::
-            \begin{aligned}
-                N ={} & \text{batch size} \\
-                L ={} & \text{sequence length} \\
-                D ={} & 2 \text{ if bidirectional=True otherwise } 1 \\
-                H_{in} ={} & \text{input\_size} \\
-                H_{out} ={} & \text{hidden\_size}
-            \end{aligned}
-
-    Outputs: output, h_n
-        * **output**: tensor of shape :math:`(L, D * H_{out})` for unbatched input,
-          :math:`(L, N, D * H_{out})` when ``batch_first=False`` or
-          :math:`(N, L, D * H_{out})` when ``batch_first=True`` containing the output features
-          `(h_t)` from the last layer of the GRU, for each `t`. If a
-          :class:`torch.nn.utils.rnn.PackedSequence` has been given as the input, the output
-          will also be a packed sequence.
-        * **h_n**: tensor of shape :math:`(D * \text{num\_layers}, H_{out})` or
-          :math:`(D * \text{num\_layers}, N, H_{out})` containing the final hidden state
-          for the input sequence.
-
-    Attributes:
-        weight_ih_l[k] : the learnable input-hidden weights of the :math:`\text{k}^{th}` layer
-            (W_ir|W_iz|W_in), of shape `(3*hidden_size, input_size)` for `k = 0`.
-            Otherwise, the shape is `(3*hidden_size, num_directions * hidden_size)`
-        weight_hh_l[k] : the learnable hidden-hidden weights of the :math:`\text{k}^{th}` layer
-            (W_hr|W_hz|W_hn), of shape `(3*hidden_size, hidden_size)`
-        bias_ih_l[k] : the learnable input-hidden bias of the :math:`\text{k}^{th}` layer
-            (b_ir|b_iz|b_in), of shape `(3*hidden_size)`
-        bias_hh_l[k] : the learnable hidden-hidden bias of the :math:`\text{k}^{th}` layer
-            (b_hr|b_hz|b_hn), of shape `(3*hidden_size)`
-
-    .. note::
-        All the weights and biases are initialized from :math:`\mathcal{U}(-\sqrt{k}, \sqrt{k})`
-        where :math:`k = \frac{1}{\text{hidden\_size}}`
-
-    .. note::
-        For bidirectional GRUs, forward and backward are directions 0 and 1 respectively.
-        Example of splitting the output layers when ``batch_first=False``:
-        ``output.view(seq_len, batch, num_directions, hidden_size)``.
-
-    .. note::
-        ``batch_first`` argument is ignored for unbatched inputs.
-
-    .. note::
-        The calculation of new gate :math:`n_t` subtly differs from the original paper and other frameworks.
-        In the original implementation, the Hadamard product :math:`(*)` between :math:`r_t` and the
-        previous hidden state :math:`h_{(t-1)}` is done before the multiplication with the weight matrix
-        `W` and addition of bias:
-
-        .. math::
-            \begin{aligned}
-                n_t = \tanh(W_{in} x_t + b_{in} + W_{hn} ( r_t * h_{(t-1)} ) + b_{hn})
-            \end{aligned}
-
-        This is in contrast to PyTorch implementation, which is done after :math:`W_{hn} h_{(t-1)}`
-
-        .. math::
-            \begin{aligned}
-                n_t = \tanh(W_{in} x_t + b_{in} + r_t * (W_{hn} h_{(t-1)}+ b_{hn}))
-            \end{aligned}
-
-        This implementation differs on purpose for efficiency.
-
-    .. include:: ../cudnn_persistent_rnn.rst
-
-    Examples::
-
-        >>> rnn = nn.GRU(10, 20, 2)
-        >>> input = torch.randn(5, 3, 10)
-        >>> h0 = torch.randn(2, 3, 20)
-        >>> output, hn = rnn(input, h0)
-    """
+   
 
     @overload
     def __init__(self, input_size: int, hidden_size: int, num_layers: int = 1, bias: bool = True,
                  batch_first: bool = False, dropout: float = 0., bidirectional: bool = False,
-                 device=None, dtype=None) -> None:
+                 device=None, dtype=None): #  -> None
         ...
 
     @overload
@@ -157,12 +29,12 @@ class GRU(RNNBase):
 
     @overload  # type: ignore[override]
     @torch._jit_internal._overload_method  # noqa: F811
-    def forward(self, input: Tensor, hx: Optional[Tensor] = None) -> Tuple[Tensor, Tensor]:  # noqa: F811
+    def forward(self, input: Tensor, hx: Optional[Tensor] = None):  # -> Tuple[Tensor, Tensor] noqa: F811
         pass
 
     @overload
     @torch._jit_internal._overload_method  # noqa: F811
-    def forward(self, input: PackedSequence, hx: Optional[Tensor] = None) -> Tuple[PackedSequence, Tensor]:  # noqa: F811
+    def forward(self, input: PackedSequence, hx: Optional[Tensor] = None):  # -> Tuple[PackedSequence, Tensor] noqa: F811
         pass
 
     def forward(self, input, hx=None):  # noqa: F811

@@ -86,8 +86,8 @@ class RnnTextCls(nn.Module):
 if __name__ == "__main__":
     class_num = 10
 
-    train_text, train_label = read_data(os.path.join("..","data","文本分类","train.txt"),20000)
-    test_text, test_label = read_data(os.path.join("..","data","文本分类","test.txt"))
+    train_text, train_label = read_data(os.path.join("..","..","data","文本分类","train.txt"),20000)
+    test_text, test_label = read_data(os.path.join("..","..","data","文本分类","test.txt"))
 
     word_2_index,index_2_word = get_word_2_index(train_text)
 

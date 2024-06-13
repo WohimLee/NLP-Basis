@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import  Dataset,DataLoader
 import os
+
+from src.rnn import RNN
 def read_data(path,num=None):
     with open(path,encoding="utf-8") as f:
         all_data = f.read().split("\n")
@@ -58,7 +60,9 @@ class RnnTextCls(nn.Module):
     def __init__(self):
         super().__init__()
         self.emb = nn.Embedding(word_size,emb_num)
-        self.rnn = nn.RNN(emb_num,rnn_hidden_num,batch_first=True)  # RNN : Linear , emb_num * 200
+        # self.rnn = nn.RNN(emb_num,rnn_hidden_num,batch_first=True)  # RNN : Linear , emb_num * 200
+        self.rnn = RNN(emb_num,rnn_hidden_num,batch_first=True)  # RNN : Linear , emb_num * 200
+        
         self.cls = nn.Linear(rnn_hidden_num,class_num)
         self.loss_fun = nn.CrossEntropyLoss()
 
@@ -82,8 +86,8 @@ class RnnTextCls(nn.Module):
 if __name__ == "__main__":
     class_num = 10
 
-    train_text, train_label = read_data(os.path.join("..","..","data","文本分类","train.txt"),20000)
-    test_text, test_label = read_data(os.path.join("..","..","data","文本分类","test.txt"))
+    train_text, train_label = read_data(os.path.join("..","data","文本分类","train.txt"),20000)
+    test_text, test_label = read_data(os.path.join("..","data","文本分类","test.txt"))
 
     word_2_index,index_2_word = get_word_2_index(train_text)
 

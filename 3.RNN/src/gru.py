@@ -1,4 +1,5 @@
-
+import sys
+sys.path.append('3.RNN')
 import torch
 import torch.nn as nn
 

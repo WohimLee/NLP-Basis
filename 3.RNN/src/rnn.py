@@ -1,9 +1,9 @@
-
+import sys
+sys.path.append('3.RNN')
 import torch
 import torch.nn as nn
 
-from .rnnBase import RNNBase
-from torch import Tensor
+from src.rnnBase import RNNBase
 from typing import List, Tuple, Optional, overload
  
 from torch.nn.utils.rnn import PackedSequence
@@ -60,35 +60,6 @@ class RNN(RNNBase):
         # 调用父类的构造函数，传递模式和其他参数
         super().__init__(mode, *args, **kwargs)
 
-    @overload
-    @torch._jit_internal._overload_method  # noqa: F811
-    def forward(self, input: Tensor, hx: Optional[Tensor] = None): # -> Tuple[Tensor, Tensor]
-        """
-        提供类型提示的 `forward` 方法，用于当输入为 `Tensor` 时的情形。
-
-        参数:
-        - input (Tensor): 输入的张量。
-        - hx (Optional[Tensor]): 隐藏状态张量，可选参数，默认为 `None`。
-
-        返回:
-        - Tuple[Tensor, Tensor]: 返回值为包含两个 `Tensor` 的元组。
-        """
-        pass # 用于静态分析，不产生实际所用，不需要可以删除
-
-    @overload
-    @torch._jit_internal._overload_method  # noqa: F811
-    def forward(self, input: PackedSequence, hx: Optional[Tensor] = None): # -> Tuple[PackedSequence, Tensor]
-        """
-        提供类型提示的 `forward` 方法，用于当输入为 `PackedSequence` 时的情形。
-
-        参数:
-        - input (PackedSequence): 输入的 `PackedSequence`，用于处理变长序列。
-        - hx (Optional[Tensor]): 隐藏状态张量，可选参数，默认为 `None`。
-
-        返回:
-        - Tuple[PackedSequence, Tensor]: 返回值为包含 `PackedSequence` 和 `Tensor` 的元组。
-        """
-        pass # 用于静态分析，不产生实际所用，不需要可以删除
 
     def forward(self, input, hx=None):  # noqa: F811
         """
@@ -162,10 +133,8 @@ class RNN(RNNBase):
                 
         # 确保隐藏状态 hx 不为 None
         assert hx is not None
-        
         # 检查前向传播的输入参数是否有效
         self.check_forward_args(input, hx, batch_sizes)
-        
         # 确保 RNN 模式是 'RNN_TANH' 或 'RNN_RELU'
         assert self.mode == 'RNN_TANH' or self.mode == 'RNN_RELU'
         

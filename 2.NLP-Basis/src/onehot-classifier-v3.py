@@ -59,33 +59,7 @@ def get_word_2_index(all_text):
 
     return word_2_index,index_2_word
 
-def get_word_onehot(len_):
-    onehot = np.zeros((len_,len_))
 
-    for i in range(len(onehot)):
-        onehot[i][i] = 1
-
-    return onehot
-
-def softmax(x):
-    max_x = np.max(x,axis = -1,keepdims=True)
-    x = x - max_x
-
-    # x = np.clip(x, -1e10, 100)
-    ex = np.exp(x)
-    sum_ex = np.sum(ex, axis=1, keepdims=True)
-
-    result = ex / sum_ex
-
-    result = np.clip(result, 1e-10, 1e10)
-    return result
-
-def make_onehot(labels, class_num):
-    result = np.zeros((len(labels), class_num))
-
-    for idx, cls in enumerate(labels):
-        result[idx][cls] = 1
-    return result
 
 
 class MyModel(nn.Module):

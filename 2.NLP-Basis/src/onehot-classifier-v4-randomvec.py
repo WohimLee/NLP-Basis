@@ -40,7 +40,7 @@ class MyDataset(Dataset):
 
         text_idx = text_idx + [0] * (max_len - len(text_idx) )
 
-        text_emb = [word_onehot[i] for i in text_idx]
+        text_emb = [word_vec[i] for i in text_idx]
 
         text_emb = np.array(text_emb,dtype=np.float32)
 
@@ -59,20 +59,51 @@ def get_word_2_index(all_text):
 
     return word_2_index,index_2_word
 
+def get_word_onehot(len_):
+    onehot = np.zeros((len_,len_))
 
+    for i in range(len(onehot)):
+        onehot[i][i] = 1
+
+    return onehot
+
+def get_word_random_vec(len_):
+    result = np.random.normal(size=(len_,vec_num))
+    return result
+
+
+def softmax(x):
+    max_x = np.max(x,axis = -1,keepdims=True)
+    x = x - max_x
+
+    # x = np.clip(x, -1e10, 100)
+    ex = np.exp(x)
+    sum_ex = np.sum(ex, axis=1, keepdims=True)
+
+    result = ex / sum_ex
+
+    result = np.clip(result, 1e-10, 1e10)
+    return result
+
+def make_onehot(labels, class_num):
+    result = np.zeros((len(labels), class_num))
+
+    for idx, cls in enumerate(labels):
+        result[idx][cls] = 1
+    return result
 
 
 class MyModel(nn.Module):
     def __init__(self):
         super().__init__()
-        self.w = nn.Linear(len(word_2_index),len(word_2_index))
-        self.w = nn.Linear(len(word_2_index),class_num)
+        # self.w = nn.Linear(len(word_2_index),len(word_2_index))
+        self.w = nn.Linear(vec_num, class_num)
         self.loss_fun = nn.CrossEntropyLoss()
 
     def forward(self,x,label=None):
         pre = self.w(x)
-        pre = torch.mean(pre,dim=1)
-
+        pre = torch.max(pre,dim=1)[0]
+ 
         if label is not None:
             loss = self.loss_fun(pre,label)
             return loss
@@ -82,20 +113,22 @@ class MyModel(nn.Module):
 
 if __name__ == "__main__":
     class_num = 10
+    vec_num = 1000  # 词向量编码维度
 
-    train_text, train_label = read_data(os.path.join("..","data","文本分类","train.txt"),20000)
-    test_text, test_label = read_data(os.path.join("..","data","文本分类","train.txt"),-300)
+    train_text, train_label = read_data(os.path.join("data","textCls","train.txt"),20000)
+    test_text, test_label = read_data(os.path.join("data","textCls","train.txt"),-300)
 
     word_2_index, index_2_word = get_word_2_index(train_text)
-    word_onehot = get_word_onehot(len(word_2_index))
+    # word_vec = get_word_onehot(len(word_2_index))
+    word_vec = get_word_random_vec(len(word_2_index))
 
-    max_len= 100
+    max_len= 40  # 最大词，多了切，少了补
     batch_size = 200
-    epoch = 100
+    epoch = 5
 
     lr = 0.001
 
-    device = "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     train_dataset = MyDataset(train_text, train_label)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)

@@ -21,10 +21,6 @@ class LSTM(RNNBase):
                  proj_size: int = 0, device=None, dtype=None): #  -> None
         ...
 
-    @overload
-    def __init__(self, *args, **kwargs):
-        ...
-
     def __init__(self, *args, **kwargs):
         '''
         实际构造函数
@@ -99,19 +95,6 @@ class LSTM(RNNBase):
         # 使用 _apply_permutation 对 hidden_state 和 cell_state 进行排列，并返回新的排列后的隐藏状态张量元组
         return _apply_permutation(hx[0], permutation), _apply_permutation(hx[1], permutation)
 
-
-    @overload  # type: ignore[override]
-    @torch._jit_internal._overload_method  # noqa: F811
-    def forward(self, input: Tensor, hx: Optional[Tuple[Tensor, Tensor]] = None
-                ):  #  -> Tuple[Tensor, Tuple[Tensor, Tensor]] noqa: F811
-        pass
-
-
-    @overload
-    @torch._jit_internal._overload_method  # noqa: F811
-    def forward(self, input: PackedSequence, hx: Optional[Tuple[Tensor, Tensor]] = None
-                ):  # -> Tuple[PackedSequence, Tuple[Tensor, Tensor]] noqa: F811
-        pass
 
     def forward(self, input, hx=None):  # noqa: F811
         """

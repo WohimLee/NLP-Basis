@@ -1,65 +1,81 @@
 import os
-import sys
-import pickle
-import jieba
-
-
-import numpy as np
 import pandas as pd
+import jieba
+import numpy as np
 from tqdm import tqdm
 
-sys.path.append('2.NLP-Basis/src')
-from utils import cut_words, get_dict, softmax
+def get_data(file):
+    all_data = pd.read_csv(file,encoding="gbk",names=["data"])
+    all_data = all_data["data"].tolist()
+
+    cut_data = []
+    for data in all_data:
+        word_cut = jieba.lcut(data)
+        cut_data.append(word_cut)
+
+    return cut_data
+
+def build_word_2_index(all_data):
+    word_2_index = {}
+    for data in all_data:
+        for w in data:
+            word_2_index[w] = word_2_index.get(w,len(word_2_index))
+    return  word_2_index
+
+def build_word_2_onehot(len_):
+    return np.eye(len_).reshape(len_,1,len_)
 
 
+def softmax(x):
+    max_x = np.max(x,axis=-1)
+    ex = np.exp(x-max_x)
+
+    sum_ex = np.sum(ex,axis=1)
+
+    result = ex / sum_ex
+
+    return result
 
 
 if __name__ == "__main__":
-    data = cut_words()
-    word_2_index, index_2_word, word_2_onehot = get_dict(data)
+    all_data = get_data(os.path.join("..","data","word2vec","数学原始数据.csv"))
+    word_2_index = build_word_2_index(all_data) # 词表构建
+    words_len = len(word_2_index)
+    word_2_onehot = build_word_2_onehot(words_len)
 
-
-    word_size = len(word_2_index)
-    embedding_num = 107
-    lr = 0.01
     epoch = 10
-    n_gram = 3
+    n = 2
+    embedding_num = 200
+    lr = 0.1
 
-    w1 = np.random.normal(-1,1,size = (word_size,embedding_num))
-    w2 = np.random.normal(-1,1,size = (embedding_num,word_size))
+    w1 = np.random.normal(size=(words_len,embedding_num))
+    w2 = np.random.normal(size=(embedding_num,words_len))
 
     for e in range(epoch):
-        for words in tqdm(data):
-            for n_index,now_word in enumerate(words):
-                now_word_onehot = word_2_onehot[now_word]
-                other_words = words[max(n_index-n_gram,0):n_index] + words[n_index+1 : n_index+1+n_gram]
+        for words in tqdm(all_data): # 每句话
+
+            for ni,now_word in enumerate(words): # 每句话里面的每个词
+                other_words = words[ni-2:ni] + words[ni+1:ni+1+2]
+
+                now_word_onehot = word_2_onehot[word_2_index[now_word]]
                 for other_word in other_words:
-                    other_word_onehot = word_2_onehot[other_word]
+                    other_word_onehot = word_2_onehot[word_2_index[other_word]]
 
-                    hidden = now_word_onehot @ w1
-                    p = hidden @ w2
-                    pre = softmax(p)
+                    hidden = other_word_onehot @ w1  #
 
+                    pre = hidden @ w2
 
-                    # loss = -np.sum(other_word_onehot * np.log(pre))
+                    p = softmax(pre)
+                    loss = - np.sum(now_word_onehot * np.log(p))
 
-                    # A @ B = C
-                    # delta_C = G
-                    # delta_A = G @ B.T
-                    # delta_B = A.T @ G
+                    delta_pre = G = p - now_word_onehot
 
-                    G2 = pre - other_word_onehot
-                    delta_w2 = hidden.T @ G2
-                    G1 = G2 @ w2.T
-                    delta_w1 = now_word_onehot.T @ G1
+                    delta_w2 = hidden.T @ G
+                    delta_hidden = G @ w2.T
 
-                    w1 -= lr * delta_w1
-                    w2 -= lr * delta_w2
+                    delta_w1 = other_word_onehot.T @ delta_hidden
 
-    with open("word2vec.pkl","wb") as f:
-        pickle.dump([w1,word_2_index,index_2_word],f)  # word2vec 负采样
+                    w1 = w1 - lr * delta_w1
+                    w2 = w2 - lr * delta_w2
 
-
-
-
-
+        print(loss)

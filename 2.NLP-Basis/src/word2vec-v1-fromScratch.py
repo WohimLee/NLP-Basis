@@ -38,13 +38,13 @@ def softmax(x):
 
 
 if __name__ == "__main__":
-    all_data = get_data(os.path.join("..","data","word2vec","数学原始数据.csv"))
+    all_data = get_data(os.path.join("data","word2vec","数学原始数据.csv"))
     word_2_index = build_word_2_index(all_data) # 词表构建
     words_len = len(word_2_index)
     word_2_onehot = build_word_2_onehot(words_len)
 
     epoch = 10
-    n = 2
+    n = 2 # 滑窗
     embedding_num = 200
     lr = 0.1
 

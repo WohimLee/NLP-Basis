@@ -4,6 +4,8 @@ import pandas as pd
 from tqdm import tqdm
 import numpy as np
 
+import os.path as osp
+
 
 # 当前词语 预测其他词语
 def clean_info(X):  # 需要传入X和y, 因为文本经过处理之后,有可能为空, 需要删除为空的文本, 此时应该删除对应的y
@@ -33,7 +35,7 @@ def build_word_dict(contents_list):
         index_2_word[index] = key
     return word_2_index,index_2_word,np.array(one_hot_result,dtype=np.int32).reshape(len(one_hot_result),1,-1)
 
-def load_stop_word(file="stopwords.txt"):
+def load_stop_word(file=osp.join("data", "word2vec", "stopwords.txt")):
     return [i.strip() for i in open(file,"r",encoding="utf-8").readlines()]
 
 def softmax(x):
@@ -86,8 +88,8 @@ def get_sample_tuple(now_word,other_words,neg_nums,word_2_index,table):
 
 if __name__ == "__main__":
     # np.random.seed(7)
-
-    data_math = pd.read_csv("数学原始数据.csv", encoding='gbk', header=None)[0].values
+    path = osp.join("data", "word2vec", "数学原始数据.csv")
+    data_math = pd.read_csv(path, encoding='gbk', header=None)[0].values
     data_math = clean_info(data_math)
     word_2_index, index_2_word, table = build_dict(data_math)
 

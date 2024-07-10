@@ -1,130 +1,106 @@
-import pickle
-import jieba
+import os
 import pandas as pd
-from tqdm import tqdm
+import jieba
 import numpy as np
+from tqdm import tqdm
+import pickle
+import random
 
-import os.path as osp
+def get_data(file):
+    all_data = pd.read_csv(file,encoding="gbk",names=["data"])
+    all_data = all_data["data"].tolist()
 
-'''
-skip-gram
-'''
+    cut_data = []
+    for data in all_data:
+        word_cut = jieba.lcut(data)
+        cut_data.append(word_cut)
 
-# 当前词语 预测其他词语
-def clean_info(X):  # 需要传入X和y, 因为文本经过处理之后,有可能为空, 需要删除为空的文本, 此时应该删除对应的y
-    result_x = []
-    stop_words = load_stop_word() + ["\u3000"]
+    return cut_data[:]
 
-    for index, content in tqdm(enumerate(X)):
-                result_x.append([i for i in jieba.lcut(content) if i not in stop_words])
-    return result_x
-
-def build_word_dict(contents_list):
+def build_word_2_index(all_data):
     word_2_index = {}
-    index_2_word = {}
+    for data in all_data:
+        for w in data:
+            word_2_index[w] = word_2_index.get(w,len(word_2_index))
+    return  word_2_index
 
-    n = 0
-    for content in contents_list:
-        for word in content:
-            if word not in word_2_index:
-                word_2_index[word] = word_2_index.get(word,n)
-                n+=1
+def build_word_2_onehot(len_):
+    return np.eye(len_).reshape(len_,1,len_)
 
-    one_hot_result = []
-    for index,key in enumerate(word_2_index):
-        one_hot = [0 for _ in range(len(word_2_index))]
-        one_hot[index] = 1
-        one_hot_result.append(one_hot)
-        index_2_word[index] = key
-    return word_2_index,index_2_word,np.array(one_hot_result,dtype=np.int32).reshape(len(one_hot_result),1,-1)
-
-def load_stop_word(file=osp.join("data", "word2vec", "stopwords.txt")):
-    return [i.strip() for i in open(file,"r",encoding="utf-8").readlines()]
 
 def softmax(x):
-    if len(x.shape) == 1:
-        x = x.reshape(1,-1)
-    ex = np.exp(x)
-    return ex / np.sum(ex,axis=1)
+    max_x = np.max(x,axis=-1)
+    ex = np.exp(x-max_x)
 
-def sigmoid( x):
-    if x > 6:
-        return 1.0
-    elif x < -6:
-        return 0.0
-    else:
-        return 1 / (1 + np.exp(-x))
+    sum_ex = np.sum(ex,axis=1)
 
-def build_dict(data_list):
-    word_2_index,index_2_word,word_times = {},{},{}
-    for content in data_list:
-        for word in content:
-            word_times[word] = word_times.get(word,0) + 1
-            if word not in word_2_index:
-                now_index =  len(word_2_index)
-                word_2_index[word] = word_2_index.get(word,now_index)
-                index_2_word[now_index] = word
-    vec = []
-    for word,times in word_times.items():
-        word_index = word_2_index[word]
-        for i in range(times):
-            vec.append(word_index)
-    return word_2_index,index_2_word,vec
+    result = ex / sum_ex
 
-
-def sampling(table, count):
-    indices = np.random.randint(low=0, high=len(table), size=count)
-    return [table[i] for i in indices]
-
-def get_sample_tuple(now_word,other_words,neg_nums,word_2_index,table):
-    result = []
-    now_word_index = word_2_index[now_word]
-    for other_word in other_words:
-        other_word_index = word_2_index[other_word]
-        result.append((now_word_index,other_word_index,1))
-        samples = sampling(table,neg_nums)
-        for s in samples:
-            if s == now_word_index or s == other_word_index:
-                continue
-            result.append((now_word_index,s,0))
     return result
 
+def get_triple(now_word_idx,words):
+    now_word = words[now_word_idx]
+    r_word = words[now_word_idx-n_gram:now_word_idx] + words[now_word_idx+1:now_word_idx+1+n_gram]
+
+    result = [(now_word,i,np.array([[1]])) for i in r_word]
+
+    for i in range(negtive):
+        other_word = random.choice(index_2_word)
+
+        if other_word in r_word or other_word == now_word:
+            continue
+        result.append((now_word,other_word,np.array([[0]])))
+    # while
+
+    return result
+
+def sigmoid(x):
+    x = np.clip(x,-30,30)
+    return 1/(1+np.exp(-x))
+
+
 if __name__ == "__main__":
-    # np.random.seed(7)
-    path = osp.join("data", "word2vec", "数学原始数据.csv")
-    data_math = pd.read_csv(path, encoding='gbk', header=None)[0].values
-    data_math = clean_info(data_math)
-    word_2_index, index_2_word, table = build_dict(data_math)
+    all_data = get_data(os.path.join("..","data","word2vec","数学原始数据.csv"))
+    word_2_index = build_word_2_index(all_data)
+    words_len = len(word_2_index)
+    index_2_word = list(word_2_index)
+    word_2_onehot = build_word_2_onehot(words_len)
 
-    word_size = len(word_2_index)
-    feature_num = 50
+    epoch = 10
+    n_gram = 2
+    embedding_num = 300
+    negtive = 10
+    lr = 0.07
 
-    n_gram = 4
-    negative_num = 5
-    lr = 0.01
-    epochs = 4
+    w1 = np.random.normal(size=(words_len,embedding_num))
+    w2 = np.random.normal(size=(embedding_num,words_len))
 
-    w1 = np.random.normal(size=(word_size, feature_num))
-    w2 = np.random.normal(size=(feature_num, word_size))
+    for e in range(epoch):
+        for words in tqdm(all_data):
+            for now_word_idx,now_word in enumerate(words):
+                triple = get_triple(now_word_idx,words)
 
-    for e in range(epochs):
-        for content in tqdm(data_math):
-            for index,word in enumerate(content):
-                other_words = content[max(0, index - n_gram):index] + content[index + 1: index + 1 + n_gram]
-                samples = get_sample_tuple(word,other_words,negative_num,word_2_index,table)
 
-                for now_word_index,other_word_index,is_context in samples:
-                    h = 1 * w1[now_word_index]
-                    p = h @ w2[:,other_word_index]
-                    predict = sigmoid(p)
+                for now_word,other_word,label in triple:
+                    now_word_onehot = word_2_onehot[word_2_index[now_word]]
+                    other_word_onehot = word_2_onehot[word_2_index[other_word]]
 
-                    G2 = predict - is_context
-                    delta_w2 = h.T * G2
+                    # hidden = now_word_onehot @ w1
+                    hidden = 1*w1[word_2_index[now_word],None]
 
-                    G1 = G2 *  w2[:,other_word_index].T
-                    delta_w1 = 1 * G1
+                    pre = hidden @ w2[:,word_2_index[other_word],None]
 
-                    w2[:, other_word_index] -= lr * delta_w2
-                    w1[now_word_index] -= lr * delta_w1
+                    p = sigmoid(pre)
 
-    pickle.dump([w1, word_2_index, index_2_word, w2], open("_负采样_.pkl", "wb"))
+                    loss = -np.sum( label*np.log(p) + (1-label)*np.log(1-p) )
+
+                    G = p - label
+
+                    delta_w2 = hidden.T @ G
+                    delta_h = G @ w2[:,word_2_index[other_word],None].T
+
+                    delta_w1 =  delta_h
+
+                    # w1 -= lr * delta_w1
+                    w1[word_2_index[now_word],None] -= lr * delta_w1
+                    w2[:, word_2_index[other_word], None] -= lr * delta_w2

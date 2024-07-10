@@ -4,6 +4,10 @@ import jieba
 import numpy as np
 from tqdm import tqdm
 
+'''
+CBOW 模型
+'''
+
 def get_data(file):
     all_data = pd.read_csv(file,encoding="gbk",names=["data"])
     all_data = all_data["data"].tolist()

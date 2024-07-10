@@ -6,6 +6,9 @@ import numpy as np
 
 import os.path as osp
 
+'''
+skip-gram
+'''
 
 # 当前词语 预测其他词语
 def clean_info(X):  # 需要传入X和y, 因为文本经过处理之后,有可能为空, 需要删除为空的文本, 此时应该删除对应的y

@@ -101,7 +101,7 @@ if __name__ == "__main__":
             batch_label       = batch_label.numpy()
             
             pre = batch_word_onehot @ W1 # (batchSize, maxLen, labelDim)
-            pre_mean = np.mean(pre,axis=1) # (batchSize, labelDim)
+            pre_mean = np.mean(pre,axis=1) # (batchSize, labelDim)，因为我们要按整句话的意思去分类
             p = softmax(pre_mean)
             loss = -np.sum( batch_label * np.log(p) + (1-batch_label) * np.log(1-p))
 

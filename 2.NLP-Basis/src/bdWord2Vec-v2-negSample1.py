@@ -60,7 +60,7 @@ def sigmoid(x):
 
 
 if __name__ == "__main__":
-    all_data = get_data(os.path.join("..","data","word2vec","数学原始数据.csv"))
+    all_data = get_data(os.path.join("data","word2vec","数学原始数据.csv"))
     word_2_index = build_word_2_index(all_data)
     words_len = len(word_2_index)
     index_2_word = list(word_2_index)
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     w2 = np.random.normal(size=(embedding_num,words_len))
 
     for e in range(epoch):
-        for words in tqdm(all_data):
+        for words in tqdm(all_data): # batch_size=1
             for now_word_idx,now_word in enumerate(words):
                 triple = get_triple(now_word_idx,words)
 

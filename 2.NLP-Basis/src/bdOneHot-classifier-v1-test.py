@@ -80,7 +80,7 @@ def make_onehot(labels, class_num):
     return result
 
 if __name__ == "__main__":
-    train_text, train_label = read_data(os.path.join("data","train.txt"))
+    train_text, train_label = read_data(os.path.join("data", "test", "train.txt"))
     train_label = make_onehot(train_label,2)
     word_2_index, index_2_word = get_word_2_index(train_text)
     word_onehot = get_word_onehot(len(word_2_index))

@@ -6,6 +6,52 @@ import numpy as np
 import pandas as pd
 
 
+def read_data(path):
+    with open(path,encoding="utf-8") as f:
+        all_data = f.read().split("\n")
+    all_text = []
+    all_label = []
+
+    for data in all_data:
+        data_s = data.split(" ")
+        if len(data_s) != 2:
+            continue
+        text,lable = data_s
+
+        all_text.append(text)
+        all_label.append(int(lable))
+
+    return all_text, all_label
+
+
+def onehot(labels, class_num):
+    n = len(labels)
+    res = np.zeros((n, class_num))
+    rows = np.arange(n)
+    # cols = label.reshape(-1)
+    # res[rows, cols] = 1
+    res[rows, labels] = 1
+    return res
+
+
+def word2index(corpus):
+    word2idx = {"PAD":0,"UNK":1}
+    for text in corpus:
+        for word in text:
+            word2idx[word] = word2idx.get(word,len(word2idx))
+    idx2word = list(word2idx)
+
+    return word2idx, idx2word
+
+
+
+def word2onehot(word_num):
+    res = np.zeros((word_num, word_num))
+    rows = np.arange(word_num)
+    res[rows, rows] = 1
+    return res
+
+
 
 def load_stop_words(file = "stopwords.txt"):
     with open(file,"r",encoding = "utf-8") as f:
@@ -59,23 +105,9 @@ def softmax(x):
     result = np.clip(result, 1e-10, 1e10)
     return result
 
-def make_onehot(labels, class_num):
-    result = np.zeros((len(labels), class_num))
-
-    for idx, cls in enumerate(labels):
-        result[idx][cls] = 1
-    return result
 
 
-def get_word_2_index(all_text):
-    word_2_index = {"PAD":0}
-    for text in all_text:
-        for w in text:
-            word_2_index[w] = word_2_index.get(w,len(word_2_index))
 
-    index_2_word = list(word_2_index)
-
-    return word_2_index,index_2_word
 
 def get_word_onehot(len_):
     onehot = np.zeros((len_,len_))

@@ -37,11 +37,9 @@ class MyDataset(Dataset):
         label = self.all_label[index]
 
         text_idx = [word_2_index.get(i,1) for i in text]
-
         text_idx = text_idx + [0] * (max_len - len(text_idx) )
 
         text_emb = [word_vec[i] for i in text_idx]
-
         text_emb = np.array(text_emb,dtype=np.float32)
 
         return text_emb,label
@@ -115,8 +113,8 @@ if __name__ == "__main__":
     class_num = 10
     vec_num = 1000  # 词向量编码维度
 
-    train_text, train_label = read_data(os.path.join("data","textCls","train.txt"),20000)
-    test_text, test_label = read_data(os.path.join("data","textCls","train.txt"),-300)
+    train_text, train_label = read_data(os.path.join("data","tsinghua-news","train.txt"), 20000)
+    test_text, test_label = read_data(os.path.join("data","tsinghua-news","train.txt"), -300)
 
     word_2_index, index_2_word = get_word_2_index(train_text)
     # word_vec = get_word_onehot(len(word_2_index))

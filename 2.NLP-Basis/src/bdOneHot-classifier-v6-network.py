@@ -40,11 +40,11 @@ class MyDataset(Dataset):
 
         text_idx = text_idx + [0] * (max_len - len(text_idx) )
 
-        text_emb = [word_vec[i] for i in text_idx]
+        # text_emb = [word_vec[i] for i in text_idx]
+        #
+        # text_emb = np.array(text_emb,dtype=np.float32)
 
-        text_emb = np.array(text_emb,dtype=np.float32)
-
-        return text_emb,label
+        return torch.tensor(text_idx),label
 
     def __len__(self):
         return  len(self.all_text)
@@ -58,18 +58,6 @@ def get_word_2_index(all_text):
     index_2_word = list(word_2_index)
 
     return word_2_index,index_2_word
-
-def get_word_onehot(len_):
-    onehot = np.zeros((len_,len_))
-
-    for i in range(len(onehot)):
-        onehot[i][i] = 1
-
-    return onehot
-
-def get_word_random_vec(len_):
-    result = np.random.normal(size=(len_,vec_num))
-    return result
 
 
 def softmax(x):
@@ -97,13 +85,22 @@ class MyModel(nn.Module):
     def __init__(self):
         super().__init__()
         # self.w = nn.Linear(len(word_2_index),len(word_2_index))
-        self.w = nn.Linear(vec_num, class_num)
+        self.emb = nn.Embedding(len(word_2_index),vec_num) # 搜狗的字向量
+
+        self.linear1 = nn.Linear(vec_num,300)
+        self.relu = nn.ReLU()
+        self.drop_out = nn.Dropout(0.1)
+        self.cls = nn.Linear(300,class_num)
         self.loss_fun = nn.CrossEntropyLoss()
 
     def forward(self,x,label=None):
-        pre = self.w(x)
-        pre = torch.max(pre,dim=1)[0]
- 
+        x = self.emb.forward(x) # batch * seq_len ----> batch * seq_len * 200
+        x = self.linear1(x)  # batch * seq_len * 200 --> batch * seq_len * 300
+        x = self.relu(x)    # batch * seq_len * 300 ---> batch * seq_len * 300
+        x = self.drop_out(x)    # batch * seq_len * 300 ---> batch * seq_len * 300
+        pre = self.cls(x)   # batch * seq_len * 300 --> batch * seq_len * 10
+        pre = torch.max(pre,dim=1)[0] # batch * seq_len * 10 ----> batch * 10
+
         if label is not None:
             loss = self.loss_fun(pre,label)
             return loss
@@ -113,22 +110,22 @@ class MyModel(nn.Module):
 
 if __name__ == "__main__":
     class_num = 10
-    vec_num = 1000  # 词向量编码维度
+    vec_num = 200
 
-    train_text, train_label = read_data(os.path.join("data","textCls","train.txt"),20000)
-    test_text, test_label = read_data(os.path.join("data","textCls","train.txt"),-300)
+    train_text, train_label = read_data(os.path.join("data","tsinghua-news","train.txt"))
+    test_text, test_label = read_data(os.path.join("data","tsinghua-news","train.txt"))
 
     word_2_index, index_2_word = get_word_2_index(train_text)
     # word_vec = get_word_onehot(len(word_2_index))
-    word_vec = get_word_random_vec(len(word_2_index))
+    # word_vec = get_word_random_vec(len(word_2_index))
 
-    max_len= 40  # 最大词，多了切，少了补
-    batch_size = 200
+    max_len= 40
+    batch_size = 100
     epoch = 5
 
     lr = 0.001
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cuda"
 
     train_dataset = MyDataset(train_text, train_label)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)

@@ -20,7 +20,7 @@ def read_data(path):
             continue
         text,lable = data_s
 
-        corpus.append(text[:max_len])
+        corpus.append(text)
         labels.append(int(lable))
 
     return corpus, labels2onehot(labels, class_num)
@@ -36,7 +36,7 @@ def word2index(corpus):
     return word2idx, idx2word
     
 def words2onehot(words_num):
-    res = np.zeros((words_num, words_num))
+    res  = np.zeros((words_num, words_num))
     rows = np.arange(words_num)
     res[rows, rows] = 1
     return res
@@ -55,7 +55,7 @@ class MyDataset(Dataset):
         self.labels = labels
 
     def __getitem__(self, index):
-        text  = self.corpus[index]
+        text  = self.corpus[index][:max_len]
         label = self.labels[index]
 
         wordsIdx = [word2idx[word] for word in text] # 每句话所有词的 idx

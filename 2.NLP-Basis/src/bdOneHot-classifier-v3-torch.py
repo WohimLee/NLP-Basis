@@ -109,8 +109,8 @@ class MyModel(nn.Module):
 if __name__ == "__main__":
     class_num = 10
 
-    train_text, train_label = read_data(os.path.join("..","data","文本分类","train.txt"),20000)
-    test_text, test_label = read_data(os.path.join("..","data","文本分类","train.txt"),-300)
+    train_text, train_label = read_data(os.path.join("data","tsinghua-news","train.txt"),20000)
+    test_text, test_label = read_data(os.path.join("data","tsinghua-news","train.txt"),-300)
 
     word_2_index, index_2_word = get_word_2_index(train_text)
     word_onehot = get_word_onehot(len(word_2_index))
@@ -121,7 +121,9 @@ if __name__ == "__main__":
 
     lr = 0.001
 
-    device = "cpu"
+    # device = "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    
 
     train_dataset = MyDataset(train_text, train_label)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)

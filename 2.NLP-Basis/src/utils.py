@@ -6,23 +6,6 @@ import numpy as np
 import pandas as pd
 
 
-def read_data(path):
-    with open(path,encoding="utf-8") as f:
-        all_data = f.read().split("\n")
-    all_text = []
-    all_label = []
-
-    for data in all_data:
-        data_s = data.split(" ")
-        if len(data_s) != 2:
-            continue
-        text,lable = data_s
-
-        all_text.append(text)
-        all_label.append(int(lable))
-
-    return all_text, all_label
-
 
 def onehot(labels, class_num):
     n = len(labels)
@@ -34,14 +17,7 @@ def onehot(labels, class_num):
     return res
 
 
-def word2index(corpus):
-    word2idx = {"PAD":0,"UNK":1}
-    for text in corpus:
-        for word in text:
-            word2idx[word] = word2idx.get(word,len(word2idx))
-    idx2word = list(word2idx)
 
-    return word2idx, idx2word
 
 
 

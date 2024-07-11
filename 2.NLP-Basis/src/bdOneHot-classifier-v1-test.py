@@ -98,7 +98,7 @@ if __name__ == "__main__":
 
     for e in range(epoch):
         for batch_text_emb,batch_label in train_dataloader:
-            batch_text_emb = batch_text_emb.numpy()
+            batch_text_emb = batch_text_emb.numpy() 
             batch_label = batch_label.numpy()
             pre = batch_text_emb @ w1
             pre_mean = np.mean(pre,axis=1)

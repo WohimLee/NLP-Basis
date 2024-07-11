@@ -1,5 +1,5 @@
 # 用 One-Hot 做一个简单的文本/情感分类任务
-# 清华数据集: data/textCls
+# 清华文本分类数据集: data/textCls
 
 import numpy as np
 import os.path as osp
@@ -64,7 +64,7 @@ class MyDataset(Dataset):
 
 
 if __name__ == "__main__":
-    path = osp.join("data", "test", "train.txt")
+    path = osp.join("data", "tsinghua-news", "train.txt")
     
     max_len=8 # 每句话取的最大词数量
     batch_size = 1

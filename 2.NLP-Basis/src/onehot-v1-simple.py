@@ -5,54 +5,64 @@ import numpy as np
 import os.path as osp
 
 from torch.utils.data import Dataset, DataLoader
-from utils import onehot, word2onehot, softmax
+from utils import softmax
 
+
+def read_data(path):
+    with open(path,encoding="utf-8") as f:
+        all_data = f.read().split("\n")
+    corpus = []
+    labels = []
+
+    for data in all_data:
+        data_s = data.split(" ")
+        if len(data_s) != 2:
+            continue
+        text,lable = data_s
+
+        corpus.append(text[:max_len])
+        labels.append(int(lable))
+
+    return corpus, labels2onehot(labels, class_num)
+
+def word2index(corpus):
+    word2idx = {"PAD":0}
+    for text in corpus:
+        for word in text:
+            word2idx[word] = word2idx.get(word, len(word2idx))
+
+    idx2word = list(word2idx)
+
+    return word2idx, idx2word
+    
+def words2onehot(words_num):
+    res = np.zeros((words_num, words_num))
+    rows = np.arange(words_num)
+    res[rows, rows] = 1
+    return res
+    
+def labels2onehot(labels, class_num):
+    result = np.zeros((len(labels), class_num))
+
+    for idx, cls in enumerate(labels):
+        result[idx][cls] = 1
+    return result
+    
 
 class MyDataset(Dataset):
-    def __init__(self, path, max_len):
-        self.max_len = max_len
-        self.corpus  = []
-        self.labels  = []
-        self.word2idx  = {"PAD":0,"UNK":1}
-        self.idx2word  = {}
-        
-        self.read_data(path)
-        self.word2index(self.corpus)
-        
-    def read_data(self, path):
-        with open(path,encoding="utf-8") as f:
-            all_data = f.read().split("\n")
-
-        for data in all_data:
-            data_s = data.split(" ")
-            if len(data_s) != 2:
-                continue
-            text,lable = data_s
-
-            self.corpus.append(text)
-            self.labels.append(int(lable))
-        self.labels = onehot(self.labels, 2) # 0 或 1，正面或者负面语句
-
-    def word2index(self, corpus):
-        for text in corpus:
-            for word in text:
-                self.word2idx[word] = self.word2idx.get(word,len(self.word2idx))
-        self.idx2word = list(self.word2idx)
-        
-        self.onehot_dim = len(self.word2idx) # onehot 的维度，所有不重复词的总数
-        self.words_onehot = word2onehot(self.onehot_dim)
-
-
+    def __init__(self, corpus, labels):
+        self.corpus = corpus
+        self.labels = labels
 
     def __getitem__(self, index):
-        text  = self.corpus[index][:max_len]
+        text  = self.corpus[index]
         label = self.labels[index]
 
-        wordsIdx = [self.word2idx[word] for word in text] # 取出词的 idx
+        wordsIdx = [word2idx[word] for word in text] # 每句话所有词的 idx
 
-        wordsIdx = wordsIdx + [0] * (max_len - len(wordsIdx)) # 不够 max_len 的补 0
+        wordsIdx = wordsIdx + [0] * (max_len - len(wordsIdx) ) # 不足 max_len 的补 0
 
-        word_onehot = [self.words_onehot[wordIdx] for wordIdx in wordsIdx]
+        word_onehot = [words_onehot[wordIdx] for wordIdx in wordsIdx]
 
         word_onehot = np.array(word_onehot)
 
@@ -62,20 +72,27 @@ class MyDataset(Dataset):
         return  len(self.corpus)
 
 
-
 if __name__ == "__main__":
-    path = osp.join("data", "test", "train.txt")
+    class_num = 2
+    max_len = 8 # 每句话取的最大词数量
     
-    max_len=8 # 每句话取的最大词数量
+    
+    train_path = osp.join("data", "test", "train.txt")  
+    train_corpus, train_labels = read_data(train_path) # label 已经做 one-hot 处理
+    
+    word2idx, idx2word = word2index(train_corpus)
+    num_words = len(word2idx) # 所有词的个数，one-hot 的编码维度
+    words_onehot = words2onehot(num_words)
+    
     batch_size = 1
     
-    train_dataset = MyDataset(path, max_len)
+    train_dataset = MyDataset(train_corpus, train_labels)
     train_loader  = DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
     
     epochs = 10
     lr = 0.1
     
-    W1 = np.random.normal(size=(train_dataset.onehot_dim,2))
+    W1 = np.random.normal(size=(num_words, 2))
     
     for epoch in range(epochs):
         for batch_word_onehot, batch_label in train_loader:
@@ -100,6 +117,6 @@ if __name__ == "__main__":
             dW1 = np.mean(dW1,axis=0)
             W1 = W1 - lr * dW1
 
-        print("Loss: ", loss)
+        print(f"Epoch: {epoch}, Loss: {loss}")
     pass
 

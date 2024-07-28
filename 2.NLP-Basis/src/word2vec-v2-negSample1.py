@@ -49,12 +49,13 @@ def get_word_vector(word):
     
 # 生成正、负样本合集
 def get_triple(center_word_idx, text):
+    # 生成正样本
     center_word   = text[center_word_idx]
     context_words = text[center_word_idx-window_size : center_word_idx] \
                   + text[center_word_idx+1 : center_word_idx+1+window_size]
 
     res = [(center_word,i,np.array([[1]])) for i in context_words]
-
+    # 生成负样本
     for i in range(num_neg_samples):
         neg_sample = random.choice(idx2word)
 

@@ -26,6 +26,9 @@ def read_data(path):
     return corpus, labels2onehot(labels, class_num)
 
 def word2index(corpus):
+    '''
+    构建词表，将所有字取出来
+    '''
     word2idx = {"PAD":0}
     for text in corpus:
         for word in text:

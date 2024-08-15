@@ -78,7 +78,7 @@ class ResidualConnection(nn.Module):
             self.norm = LayerNormalization(features)
     
         def forward(self, x, sublayer):
-            return x + self.dropout(sublayer(self.norm(x)))
+            return x + self.dropout(sublayer(self.norm(x))) # 这里先norm 再过 sublayer, 大多数实现是这样, 我们跟着学
 
 class MultiHeadAttentionBlock(nn.Module):
 

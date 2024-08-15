@@ -4,6 +4,9 @@ import torch.nn as nn
 from torch.utils.data import  Dataset,DataLoader
 from transformers import BertModel
 
+from transformers import BertModel, BertTokenizer
+
+
 
 def read_data(file_path,num=None):
     with open(file_path,"r",encoding="utf-8") as f:

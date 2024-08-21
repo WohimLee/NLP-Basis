@@ -126,11 +126,12 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         writer.flush()
 
 def get_all_sentences(ds, lang):
-    for item in ds:
+    for item in ds['train']:
         yield item['translation'][lang]
 
 def get_or_build_tokenizer(config, ds, lang):
-    tokenizer_path = Path(config['tokenizer_file'].format(lang))
+    # tokenizer_path = Path(config['tokenizer_file'].format(lang))
+    tokenizer_path = Path("output") / config['tokenizer_file'].format(lang)
     if not Path.exists(tokenizer_path):
         # Most code taken from: https://huggingface.co/docs/tokenizers/quicktour
         tokenizer = Tokenizer(WordLevel(unk_token="[UNK]"))
@@ -143,17 +144,18 @@ def get_or_build_tokenizer(config, ds, lang):
     return tokenizer
 
 def get_ds(config):
-    # It only has the train split, so we divide it overselves
-    ds_raw = load_dataset(f"{config['datasource']}", f"{config['lang_src']}-{config['lang_tgt']}", split='train')
+    # 因为只有训练集, 所以我们自己分比例
+    # ds_raw = load_dataset(f"{config['datasource']}", f"{config['lang_src']}-{config['lang_tgt']}", split='train')
+    ds_raw = load_dataset('parquet', data_files=['data/opus_book/train-00000-of-00001.parquet'])
 
     # Build tokenizers
     tokenizer_src = get_or_build_tokenizer(config, ds_raw, config['lang_src'])
     tokenizer_tgt = get_or_build_tokenizer(config, ds_raw, config['lang_tgt'])
 
     # Keep 90% for training, 10% for validation
-    train_ds_size = int(0.9 * len(ds_raw))
-    val_ds_size = len(ds_raw) - train_ds_size
-    train_ds_raw, val_ds_raw = random_split(ds_raw, [train_ds_size, val_ds_size])
+    train_ds_size = int(0.9 * len(ds_raw['train']))
+    val_ds_size = len(ds_raw['train']) - train_ds_size
+    train_ds_raw, val_ds_raw = random_split(ds_raw['train'], [train_ds_size, val_ds_size])
 
     train_ds = BilingualDataset(train_ds_raw, tokenizer_src, tokenizer_tgt, config['lang_src'], config['lang_tgt'], config['seq_len'])
     val_ds = BilingualDataset(val_ds_raw, tokenizer_src, tokenizer_tgt, config['lang_src'], config['lang_tgt'], config['seq_len'])
@@ -162,7 +164,7 @@ def get_ds(config):
     max_len_src = 0
     max_len_tgt = 0
 
-    for item in ds_raw:
+    for item in ds_raw['train']:
         src_ids = tokenizer_src.encode(item['translation'][config['lang_src']]).ids
         tgt_ids = tokenizer_tgt.encode(item['translation'][config['lang_tgt']]).ids
         max_len_src = max(max_len_src, len(src_ids))
@@ -192,12 +194,11 @@ def train_model(config):
         print(f"Device name: <mps>")
     else:
         print("NOTE: If you have a GPU, consider using it for training.")
-        print("      On a Windows machine with NVidia GPU, check this video: https://www.youtube.com/watch?v=GMSjDTU8Zlc")
-        print("      On a Mac machine, run: pip3 install --pre torch torchvision torchaudio torchtext --index-url https://download.pytorch.org/whl/nightly/cpu")
+
     device = torch.device(device)
 
     # Make sure the weights folder exists
-    Path(f"{config['datasource']}_{config['model_folder']}").mkdir(parents=True, exist_ok=True)
+    Path(f"output/{config['datasource']}_{config['model_folder']}").mkdir(parents=True, exist_ok=True)
 
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
     model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)

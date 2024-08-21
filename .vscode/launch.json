@@ -6,9 +6,15 @@
     "configurations": [
         {
             "name": "Python: Current File",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
-            "program": "${file}",
+            // "program": "${file}",
+            "program": "4.Transformer/src/train.py",
+
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PATH": "/usr/local/miniconda3/envs/nlp/bin:${env:PATH}"
+            },
             "console": "integratedTerminal",
             "justMyCode": true
         }

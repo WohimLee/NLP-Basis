@@ -11,21 +11,39 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader, random_split
 from torch.optim.lr_scheduler import LambdaLR
+import xml.etree.ElementTree as ET
+from tokenizers.pre_tokenizers import PreTokenizer
+
+
 
 import warnings
 from tqdm import tqdm
 import os
 from pathlib import Path
+import jieba
 
 # Huggingface datasets and tokenizers
-from datasets import load_dataset
-from tokenizers import Tokenizer
+from datasets import Dataset, DatasetDict, load_dataset
+from tokenizers import Tokenizer, models, pre_tokenizers, trainers, normalizers
+
 from tokenizers.models import WordLevel
 from tokenizers.trainers import WordLevelTrainer
 from tokenizers.pre_tokenizers import Whitespace
+from tokenizers.trainers import WordPieceTrainer
+from tokenizers.models import WordPiece
+from tokenizers.normalizers import NFD, StripAccents
 
 import torchmetrics
 from torch.utils.tensorboard import SummaryWriter
+
+# Function to parse XML and extract sentences
+def parse_xml(file_path):
+    tree = ET.parse(file_path)
+    root = tree.getroot()
+    sentences = []
+    for seg in root.findall(".//seg"):
+        sentences.append(seg.text)
+    return sentences
 
 def greedy_decode(model: Transformer, source, source_mask, tokenizer_src, tokenizer_tgt: Tokenizer, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
@@ -129,14 +147,25 @@ def get_all_sentences(ds, lang):
     for item in ds['train']:
         yield item['translation'][lang]
 
+
 def get_or_build_tokenizer(config, ds, lang):
     # tokenizer_path = Path(config['tokenizer_file'].format(lang))
     tokenizer_path = Path("output") / config['tokenizer_file'].format(lang)
     if not Path.exists(tokenizer_path):
-        # Most code taken from: https://huggingface.co/docs/tokenizers/quicktour
-        tokenizer = Tokenizer(WordLevel(unk_token="[UNK]"))
-        tokenizer.pre_tokenizer = Whitespace()
-        trainer = WordLevelTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], min_frequency=2)
+        if lang != "zh":
+            tokenizer = Tokenizer(WordLevel(unk_token="[UNK]"))
+            tokenizer.pre_tokenizer = Whitespace()
+            trainer = WordLevelTrainer(special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"], min_frequency=2)
+        else:
+            # 初始化一个 WordPiece 分词器
+            tokenizer = Tokenizer(WordPiece(unk_token="[UNK]"))
+            # 设置文本的正则化处理，这里使用NFD和去除重音符号作为例子
+            tokenizer.normalizer = normalizers.Sequence([NFD(), StripAccents()])
+            # 使用空白字符进行预分词
+            tokenizer.pre_tokenizer = Whitespace()
+            # 使用 WordPieceTrainer 进行训练
+            trainer = WordPieceTrainer(vocab_size=30000, min_frequency=2, special_tokens=["[UNK]", "[PAD]", "[SOS]", "[EOS]"])
+
         tokenizer.train_from_iterator(get_all_sentences(ds, lang), trainer=trainer)
         tokenizer.save(str(tokenizer_path))
     else:
@@ -146,8 +175,23 @@ def get_or_build_tokenizer(config, ds, lang):
 def get_ds(config):
     # 因为只有训练集, 所以我们自己分比例
     # ds_raw = load_dataset(f"{config['datasource']}", f"{config['lang_src']}-{config['lang_tgt']}", split='train')
-    ds_raw = load_dataset('parquet', data_files=['data/opus_book/train-00000-of-00001.parquet'])
+    # ds_raw = load_dataset('parquet', data_files=['data/opus_book/train-00000-of-00001.parquet'])
 
+    # Load English and Chinese sentences
+    english_sentences = parse_xml('data/translation/zh-en/IWSLT15.TED.dev2010.zh-en.en.xml')
+    chinese_sentences = parse_xml('data/translation/zh-en/IWSLT15.TED.dev2010.zh-en.zh.xml')
+    # Create a dictionary for the dataset
+    data_dict = {
+        "id": list(range(len(english_sentences))),  # Create an id for each sentence pair
+        "translation": [{"en": en, "zh": zh} for en, zh in zip(english_sentences, chinese_sentences)]
+    }
+    # Create the dataset
+    train_dataset = Dataset.from_dict(data_dict)
+    # Wrap the dataset in a DatasetDict
+    ds_raw = DatasetDict({
+        "train": train_dataset
+    })
+    
     # Build tokenizers
     tokenizer_src = get_or_build_tokenizer(config, ds_raw, config['lang_src'])
     tokenizer_tgt = get_or_build_tokenizer(config, ds_raw, config['lang_tgt'])
@@ -263,14 +307,14 @@ def train_model(config):
         # Run validation at the end of every epoch
         run_validation(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
 
-        # Save the model at the end of every epoch
-        model_filename = get_weights_file_path(config, f"{epoch:02d}")
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'global_step': global_step
-        }, model_filename)
+    # Save the model at the end of every epoch
+    model_filename = get_weights_file_path(config, f"{epoch:02d}")
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'global_step': global_step
+    }, model_filename)
 
 
 if __name__ == '__main__':

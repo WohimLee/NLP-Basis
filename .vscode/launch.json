@@ -8,8 +8,8 @@
             "name": "Python: Current File",
             "type": "debugpy",
             "request": "launch",
-            // "program": "${file}",
-            "program": "4.Transformer/src/train.py",
+            "program": "${file}",
+            // "program": "4.Transformer/src/train.py",
 
             "cwd": "${workspaceFolder}",
             "env": {

@@ -36,14 +36,54 @@ from tokenizers.normalizers import NFD, StripAccents
 import torchmetrics
 from torch.utils.tensorboard import SummaryWriter
 
-# Function to parse XML and extract sentences
-def parse_xml(file_path):
-    tree = ET.parse(file_path)
-    root = tree.getroot()
-    sentences = []
-    for seg in root.findall(".//seg"):
-        sentences.append(seg.text)
-    return sentences
+
+def load_from_xml():
+    # Function to parse XML and extract sentences
+    def parse_xml(file_path):
+        tree = ET.parse(file_path)
+        root = tree.getroot()
+        sentences = []
+        for seg in root.findall(".//seg"):
+            sentences.append(seg.text)
+        return sentences
+
+    # Load English and Chinese sentences
+    english_sentences = parse_xml('data/translation/zh-en/IWSLT15.TED.dev2010.zh-en.en.xml')
+    chinese_sentences = parse_xml('data/translation/zh-en/IWSLT15.TED.dev2010.zh-en.zh.xml')
+    # Create a dictionary for the dataset
+    data_dict = {
+        "id": list(range(len(english_sentences))),  # Create an id for each sentence pair
+        "translation": [{"en": en, "zh": zh} for en, zh in zip(english_sentences, chinese_sentences)]
+    }
+    # Create the dataset
+    train_dataset = Dataset.from_dict(data_dict)
+    # Wrap the dataset in a DatasetDict
+    ds_raw = DatasetDict({
+        "train": train_dataset
+    })
+    return ds_raw
+
+
+def load_from_files(num_sample=15000):
+    
+    with open('data/translation/zh-en/train.tags.zh-en.en', 'r', encoding='utf-8') as en_file:
+        english_sentences = en_file.readlines()[6:][:num_sample]
+    with open('data/translation/zh-en/train.tags.zh-en.zh', 'r', encoding='utf-8') as zh_file:
+        chinese_sentences = zh_file.readlines()[6:][:num_sample]
+        
+    # Create a dictionary for the dataset
+    data_dict = {
+        "id": list(range(len(english_sentences))),  # Create an id for each sentence pair
+        "translation": [{"en": en, "zh": zh} for en, zh in zip(english_sentences, chinese_sentences)]
+    }
+    # Create the dataset
+    train_dataset = Dataset.from_dict(data_dict)
+    # Wrap the dataset in a DatasetDict
+    ds_raw = DatasetDict({
+        "train": train_dataset
+    })
+    return ds_raw
+
 
 def greedy_decode(model: Transformer, source, source_mask, tokenizer_src, tokenizer_tgt: Tokenizer, max_len, device):
     sos_idx = tokenizer_tgt.token_to_id('[SOS]')
@@ -169,6 +209,7 @@ def get_or_build_tokenizer(config, ds, lang):
         tokenizer.train_from_iterator(get_all_sentences(ds, lang), trainer=trainer)
         tokenizer.save(str(tokenizer_path))
     else:
+        print("Loading exists tokenizer...")
         tokenizer = Tokenizer.from_file(str(tokenizer_path))
     return tokenizer
 
@@ -177,20 +218,10 @@ def get_ds(config):
     # ds_raw = load_dataset(f"{config['datasource']}", f"{config['lang_src']}-{config['lang_tgt']}", split='train')
     # ds_raw = load_dataset('parquet', data_files=['data/opus_book/train-00000-of-00001.parquet'])
 
-    # Load English and Chinese sentences
-    english_sentences = parse_xml('data/translation/zh-en/IWSLT15.TED.dev2010.zh-en.en.xml')
-    chinese_sentences = parse_xml('data/translation/zh-en/IWSLT15.TED.dev2010.zh-en.zh.xml')
-    # Create a dictionary for the dataset
-    data_dict = {
-        "id": list(range(len(english_sentences))),  # Create an id for each sentence pair
-        "translation": [{"en": en, "zh": zh} for en, zh in zip(english_sentences, chinese_sentences)]
-    }
-    # Create the dataset
-    train_dataset = Dataset.from_dict(data_dict)
-    # Wrap the dataset in a DatasetDict
-    ds_raw = DatasetDict({
-        "train": train_dataset
-    })
+
+    # ds_raw = load_from_xml()
+    ds_raw = load_from_files()
+    
     
     # Build tokenizers
     tokenizer_src = get_or_build_tokenizer(config, ds_raw, config['lang_src'])
@@ -269,6 +300,7 @@ def train_model(config):
     loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]'), label_smoothing=0.1).to(device)
 
     for epoch in range(initial_epoch, config['num_epochs']):
+        
         torch.cuda.empty_cache()
         model.train()
         batch_iterator = tqdm(train_dataloader, desc=f"Processing Epoch {epoch:02d}")
@@ -303,18 +335,28 @@ def train_model(config):
             optimizer.zero_grad(set_to_none=True)
 
             global_step += 1
-
-        # Run validation at the end of every epoch
-        run_validation(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
-
-    # Save the model at the end of every epoch
-    model_filename = get_weights_file_path(config, f"{epoch:02d}")
-    torch.save({
-        'epoch': epoch,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'global_step': global_step
-    }, model_filename)
+            if global_step % 500 == 0:
+                run_validation(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
+  
+        # if epoch % 5 == 0 and epoch !=0:
+            
+        # Save the model at the end of every epoch
+        model_folder = f"output/{config['datasource']}_{config['model_folder']}"
+        model_filename = f"{config['model_basename']}*"
+        weights_files = list(Path(model_folder).glob(model_filename))
+        if len(weights_files) >1:
+            weights_files.sort()
+            os.remove(str(weights_files[0]))
+            print(f"{str(weights_files[0])} is deleted.")
+            
+        model_filename = get_weights_file_path(config, f"{epoch:02d}")   
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'global_step': global_step
+        }, model_filename)
+        print(f"Save Model to {model_filename}")
 
 
 if __name__ == '__main__':

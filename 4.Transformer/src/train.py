@@ -123,7 +123,7 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
     source_texts = []
     expected = []
     predicted = []
-
+    
     try:
         # get the console window width
         with os.popen('stty size', 'r') as console:
@@ -149,6 +149,7 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             target_text = batch["tgt_text"][0]
             model_out_text = tokenizer_tgt.decode(model_out.detach().cpu().numpy())
 
+
             source_texts.append(source_text)
             expected.append(target_text)
             predicted.append(model_out_text)
@@ -170,18 +171,21 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
         cer = metric(predicted, expected)
         writer.add_scalar('validation cer', cer, global_step)
         writer.flush()
+        print(f"Validation Character Error Rate (CER): {cer:.4f}")
 
         # Compute the word error rate
         metric = torchmetrics.WordErrorRate()
         wer = metric(predicted, expected)
         writer.add_scalar('validation wer', wer, global_step)
         writer.flush()
+        print(f"Validation Word Error Rate (WER): {wer:.4f}")
 
         # Compute the BLEU metric
         metric = torchmetrics.BLEUScore()
         bleu = metric(predicted, expected)
         writer.add_scalar('validation BLEU', bleu, global_step)
         writer.flush()
+        print(f"Validation BLEU Score: {bleu:.4f}")
 
 def get_all_sentences(ds, lang):
     for item in ds['train']:
@@ -335,7 +339,7 @@ def train_model(config):
             optimizer.zero_grad(set_to_none=True)
 
             global_step += 1
-            if global_step % 500 == 0:
+            if global_step % 200 == 0:
                 run_validation(model, val_dataloader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, lambda msg: batch_iterator.write(msg), global_step, writer)
   
         # if epoch % 5 == 0 and epoch !=0:

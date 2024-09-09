@@ -83,52 +83,98 @@ class ResidualConnection(nn.Module):
 class MultiHeadAttentionBlock(nn.Module):
 
     def __init__(self, d_model: int, h: int, dropout: float) -> None:
+        # 初始化函数，传入模型维度 d_model、注意力头数 h 和 dropout 率
         super().__init__()
-        self.d_model = d_model # Embedding vector size
-        self.h = h # Number of heads
-        # Make sure d_model is divisible by h
+        self.d_model = d_model # Embedding vector size 输入的特征维度（embedding 维度）
+        self.h = h # Number of heads, 注意力头的数量
+        # Make sure d_model is divisible by h, 确保 d_model 能够被 h 整除，这样每个头可以平分 d_model 维度
         assert d_model % h == 0, "d_model is not divisible by h"
 
-        self.d_k = d_model // h # Dimension of vector seen by each head
+        # 每个注意力头处理的维度大小 d_k
+        self.d_k = d_model // h # Dimension of vector seen by each head, 每个头看到的向量维度
         self.w_q = nn.Linear(d_model, d_model, bias=False) # Wq
         self.w_k = nn.Linear(d_model, d_model, bias=False) # Wk
         self.w_v = nn.Linear(d_model, d_model, bias=False) # Wv
+        
+        # 用于多头注意力输出的线性变换矩阵 Wo
         self.w_o = nn.Linear(d_model, d_model, bias=False) # Wo
+        # dropout 用于防止过拟合
         self.dropout = nn.Dropout(dropout)
 
     @staticmethod
     def attention(query, key, value, mask, dropout: nn.Dropout):
+        """
+        计算缩放点积注意力（Scaled Dot-Product Attention）
+        
+        参数：
+        - query: 查询向量，形状 (batch, h, seq_len, d_k)
+        - key: 键向量，形状 (batch, h, seq_len, d_k)
+        - value: 值向量，形状 (batch, h, seq_len, d_k)
+        - mask: 掩码，用于掩盖无关的位置
+        - dropout: dropout 模块
+        
+        返回：
+        - 加权后的值向量，形状 (batch, h, seq_len, d_k)
+        - 注意力得分矩阵，形状 (batch, h, seq_len, seq_len)
+        """
+        # 获取向量维度 d_k
         d_k = query.shape[-1]
+        
+        # 1. 计算注意力得分：QK^T / sqrt(d_k)
         # Just apply the formula from the paper
         # (batch, h, seq_len, d_k) --> (batch, h, seq_len, seq_len)
         attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
+        
+        # 2. 应用掩码（mask），将无关的位置得分设为负无穷小（-1e9）
         if mask is not None:
             # Write a very low value (indicating -inf) to the positions where mask == 0
             attention_scores.masked_fill_(mask == 0, -1e9)
+            
+        # 3. 对注意力得分应用 softmax，转换为概率分布
         attention_scores = attention_scores.softmax(dim=-1) # (batch, h, seq_len, seq_len) # Apply softmax
+        
+        # 4. 应用 dropout（如果指定）
         if dropout is not None:
             attention_scores = dropout(attention_scores)
+            
+        # 5. 计算最终的加权值向量：Attention(Q, K, V) = softmax(QK^T / sqrt(d_k)) * V
         # (batch, h, seq_len, seq_len) --> (batch, h, seq_len, d_k)
         # return attention scores which can be used for visualization
         return (attention_scores @ value), attention_scores
 
     def forward(self, q, k, v, mask):
+        """
+        多头注意力机制的前向传播
+        
+        参数：
+        - q: 查询向量，形状 (batch, seq_len, d_model)
+        - k: 键向量，形状 (batch, seq_len, d_model)
+        - v: 值向量，形状 (batch, seq_len, d_model)
+        - mask: 掩码，用于掩盖特定位置
+        
+        返回：
+        - 最终的多头注意力输出，形状 (batch, seq_len, d_model)
+        """
+        # 1. 通过线性变换生成查询、键和值向量
         query = self.w_q(q) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
         key   = self.w_k(k) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
         value = self.w_v(v) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
 
+        # 2. 将查询、键和值分别 reshape 成 (batch, seq_len, h, d_k)，再转置为 (batch, h, seq_len, d_k)
         # (batch, seq_len, d_model) --> (batch, seq_len, h, d_k) --> (batch, h, seq_len, d_k)
         query = query.view(query.shape[0], query.shape[1], self.h, self.d_k).transpose(1, 2)
         key   = key.view(key.shape[0],     key.shape[1],   self.h, self.d_k).transpose(1, 2)
         value = value.view(value.shape[0], value.shape[1], self.h, self.d_k).transpose(1, 2)
-
-        # Calculate attention
+        
+        # 3. 调用静态方法计算注意力机制，返回加权后的值和注意力得分
         x, self.attention_scores = MultiHeadAttentionBlock.attention(query, key, value, mask, self.dropout)
         
+        # 4. 将多头注意力的输出 reshape 回原始形状 (batch, seq_len, d_model)
         # Combine all the heads together
         # (batch, h, seq_len, d_k) --> (batch, seq_len, h, d_k) --> (batch, seq_len, d_model)
         x = x.transpose(1, 2).contiguous().view(x.shape[0], -1, self.h * self.d_k)
 
+        # 5. 通过线性变换矩阵 Wo 将多头注意力的输出映射回 d_model 维度
         # Multiply by Wo
         # (batch, seq_len, d_model) --> (batch, seq_len, d_model)  
         return self.w_o(x)
@@ -170,15 +216,44 @@ class Encoder(nn.Module):
 class DecoderBlock(nn.Module):
 
     def __init__(self, features: int, self_attention_block: MultiHeadAttentionBlock, cross_attention_block: MultiHeadAttentionBlock, feed_forward_block: FeedForwardBlock, dropout: float) -> None:
+        """
+        初始化解码器块 (Decoder Block)。
+        
+        参数：
+        - features: 输入特征的维度大小
+        - self_attention_block: 解码器的自注意力模块 (MultiHeadAttentionBlock)
+        - cross_attention_block: 解码器与编码器之间的交叉注意力模块 (MultiHeadAttentionBlock)
+        - feed_forward_block: 前馈神经网络模块 (FeedForwardBlock)
+        - dropout: dropout 率，用于防止过拟合
+        """
         super().__init__()
-        self.self_attention_block = self_attention_block
-        self.cross_attention_block = cross_attention_block
-        self.feed_forward_block = feed_forward_block
+        
+        # 解码器块的三个模块：自注意力、交叉注意力和前馈网络
+        self.self_attention_block  = self_attention_block   # 自注意力模块
+        self.cross_attention_block = cross_attention_block  # 交叉注意力模块（用于关注编码器输出）
+        self.feed_forward_block    = feed_forward_block     # 前馈神经网络模块
+        
+        # 残差连接与 LayerNorm，解码器块包含 3 个残差连接
         self.residual_connections = nn.ModuleList([ResidualConnection(features, dropout) for _ in range(3)])
 
     def forward(self, x, encoder_output, src_mask, tgt_mask):
+        """
+        解码器块的前向传播。
+
+        参数：
+        - x: 解码器的输入张量 (batch_size, tgt_seq_len, features)
+        - encoder_output: 编码器的输出 (batch_size, src_seq_len, features)
+        - src_mask: 源序列掩码，用于遮蔽编码器输入中的无效部分
+        - tgt_mask: 目标序列掩码，用于遮蔽解码器的自注意力中的未来词
+
+        返回：
+        - 经过解码器块处理后的输出张量
+        """
+        # 1. 首先，应用自注意力模块，并通过残差连接将输入与自注意力的输出相加
         x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, x, x, tgt_mask))
+        # 2. 接下来，应用交叉注意力模块，关注编码器的输出，仍通过残差连接进行相加
         x = self.residual_connections[1](x, lambda x: self.cross_attention_block(x, encoder_output, encoder_output, src_mask))
+        # 3. 最后，应用前馈神经网络，并通过残差连接将输入与前馈网络的输出相加
         x = self.residual_connections[2](x, self.feed_forward_block)
         return x
     
@@ -232,45 +307,71 @@ class Transformer(nn.Module):
         # (batch, seq_len, vocab_size)
         return self.projection_layer(x)
     
-def build_transformer(src_vocab_size: int, tgt_vocab_size: int, src_seq_len: int, tgt_seq_len: int, d_model: int=512, N: int=6, h: int=8, dropout: float=0.1, d_ff: int=2048) -> Transformer:
-    # Create the embedding layers
-    src_embed = InputEmbeddings(d_model, src_vocab_size)
-    tgt_embed = InputEmbeddings(d_model, tgt_vocab_size)
+def build_transformer(
+        src_vocab_size: int, 
+        tgt_vocab_size: int, 
+        src_seq_len: int, 
+        tgt_seq_len: int, 
+        d_model: int=512, N: int=6, h: int=8, dropout: float=0.1, d_ff: int=2048
+    ) -> Transformer:
+    """
+    构建一个完整的 Transformer 模型，包含编码器、解码器、嵌入层、位置编码和投影层。
 
-    # Create the positional encoding layers
-    src_pos = PositionalEncoding(d_model, src_seq_len, dropout)
-    tgt_pos = PositionalEncoding(d_model, tgt_seq_len, dropout)
+    参数：
+    - src_vocab_size: 源语言的词汇表大小
+    - tgt_vocab_size: 目标语言的词汇表大小
+    - src_seq_len: 源序列的最大长度
+    - tgt_seq_len: 目标序列的最大长度
+    - d_model: 模型维度，默认为 512
+    - N: 编码器和解码器块的层数，默认为 6
+    - h: 多头注意力机制中的头数，默认为 8
+    - dropout: dropout 率，默认为 0.1
+    - d_ff: 前馈神经网络中隐藏层的维度，默认为 2048
+
+    返回：
+    - transformer: 构建好的 Transformer 模型
+    """
     
-    # Create the encoder blocks
+    # 1. 创建嵌入层，负责将输入的单词索引转换为特征向量
+    src_embed = InputEmbeddings(d_model, src_vocab_size)    # 源语言嵌入层
+    tgt_embed = InputEmbeddings(d_model, tgt_vocab_size)    # 目标语言嵌入层
+
+    # 2. 创建位置编码层，为输入添加位置信息
+    src_pos = PositionalEncoding(d_model, src_seq_len, dropout) # 源语言的位置编码
+    tgt_pos = PositionalEncoding(d_model, tgt_seq_len, dropout) # 目标语言的位置编码
+    
+    # 3. 构建编码器块列表，包含 N 层编码器，每层包括一个自注意力模块和一个前馈神经网络模块
     encoder_blocks = []
     for _ in range(N):
+        # 每个编码器块包含一个多头自注意力模块和一个前馈神经网络模块
         encoder_self_attention_block = MultiHeadAttentionBlock(d_model, h, dropout)
         feed_forward_block = FeedForwardBlock(d_model, d_ff, dropout)
         encoder_block = EncoderBlock(d_model, encoder_self_attention_block, feed_forward_block, dropout)
         encoder_blocks.append(encoder_block)
 
-    # Create the decoder blocks
+    # 4. 构建解码器块列表，包含 N 层解码器，每层包括一个自注意力模块、一个交叉注意力模块和一个前馈神经网络模块
     decoder_blocks = []
     for _ in range(N):
+        # 每个解码器块包含一个多头自注意力模块、一个多头交叉注意力模块和一个前馈神经网络模块
         decoder_self_attention_block = MultiHeadAttentionBlock(d_model, h, dropout)
         decoder_cross_attention_block = MultiHeadAttentionBlock(d_model, h, dropout)
         feed_forward_block = FeedForwardBlock(d_model, d_ff, dropout)
         decoder_block = DecoderBlock(d_model, decoder_self_attention_block, decoder_cross_attention_block, feed_forward_block, dropout)
         decoder_blocks.append(decoder_block)
     
-    # Create the encoder and decoder
+    # 5. 创建编/解码器，包含 N 个编/解码器块
     encoder = Encoder(d_model, nn.ModuleList(encoder_blocks))
     decoder = Decoder(d_model, nn.ModuleList(decoder_blocks))
     
-    # Create the projection layer
+    # 6. 创建投影层，用于将解码器的输出投影到目标语言的词汇表空间
     projection_layer = ProjectionLayer(d_model, tgt_vocab_size)
     
-    # Create the transformer
+    # 7. 构建完整的 Transformer 模型，将编码器、解码器、嵌入层、位置编码和投影层整合
     transformer = Transformer(encoder, decoder, src_embed, tgt_embed, src_pos, tgt_pos, projection_layer)
     
-    # Initialize the parameters
+    # 8. 初始化 Transformer 模型的参数，使用 Xavier 均匀初始化，确保权重分布的良好初始化
     for p in transformer.parameters():
-        if p.dim() > 1:
+        if p.dim() > 1: # 只对多维参数进行初始化，跳过偏置等单维参数
             nn.init.xavier_uniform_(p)
     
-    return transformer
+    return transformer  # 返回构建的 Transformer 模型

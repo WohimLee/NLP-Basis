@@ -72,13 +72,13 @@ class PositionalEncoding(nn.Module):
 
 class ResidualConnection(nn.Module):
     
-        def __init__(self, features: int, dropout: float) -> None:
-            super().__init__()
-            self.dropout = nn.Dropout(dropout)
-            self.norm = LayerNormalization(features)
-    
-        def forward(self, x, sublayer):
-            return x + self.dropout(sublayer(self.norm(x))) # 这里先norm 再过 sublayer, 大多数实现是这样, 我们跟着学
+    def __init__(self, features: int, dropout: float) -> None:
+        super().__init__()
+        self.dropout = nn.Dropout(dropout)
+        self.norm = LayerNormalization(features)
+
+    def forward(self, x, sublayer):
+        return x + self.dropout(sublayer(self.norm(x))) # 这里先 norm 再过 sublayer, 大多数实现是这样, 我们跟着学
 
 class MultiHeadAttentionBlock(nn.Module):
 
@@ -114,12 +114,12 @@ class MultiHeadAttentionBlock(nn.Module):
 
     def forward(self, q, k, v, mask):
         query = self.w_q(q) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
-        key = self.w_k(k) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
+        key   = self.w_k(k) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
         value = self.w_v(v) # (batch, seq_len, d_model) --> (batch, seq_len, d_model)
 
         # (batch, seq_len, d_model) --> (batch, seq_len, h, d_k) --> (batch, h, seq_len, d_k)
         query = query.view(query.shape[0], query.shape[1], self.h, self.d_k).transpose(1, 2)
-        key = key.view(key.shape[0], key.shape[1], self.h, self.d_k).transpose(1, 2)
+        key   = key.view(key.shape[0],     key.shape[1],   self.h, self.d_k).transpose(1, 2)
         value = value.view(value.shape[0], value.shape[1], self.h, self.d_k).transpose(1, 2)
 
         # Calculate attention
@@ -136,15 +136,24 @@ class MultiHeadAttentionBlock(nn.Module):
 class EncoderBlock(nn.Module):
 
     def __init__(self, features: int, self_attention_block: MultiHeadAttentionBlock, feed_forward_block: FeedForwardBlock, dropout: float) -> None:
+        # 初始化函数，传入特征维度、self-attention模块、前馈网络模块和dropout率
         super().__init__()
+        
+        # 保存传入的 self-attention 模块和前馈网络模块
         self.self_attention_block = self_attention_block
         self.feed_forward_block = feed_forward_block
+        
+        # 使用两个残差连接层，每个残差连接层包含 dropout 和 LayerNorm，用于稳定训练
         self.residual_connections = nn.ModuleList([ResidualConnection(features, dropout) for _ in range(2)])
 
     def forward(self, x, src_mask):
+        # 首先对输入进行第一层残差连接，使用 self-attention 机制来处理输入
+        # residual_connections[0] 包含 self-attention 机制的输出和输入 x
         x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, x, x, src_mask))
+        
+        # 接下来进行第二层残差连接，使用前馈网络处理 self-attention 输出
         x = self.residual_connections[1](x, self.feed_forward_block)
-        return x
+        return x    # 返回经过 self-attention 和前馈网络处理后的结果
     
 class Encoder(nn.Module):
 

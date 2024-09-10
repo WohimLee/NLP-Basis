@@ -113,11 +113,11 @@ if __name__ == "__main__":
 
     batch_size = 100
     
-    train_dataset    = MyDataset(train_corpus, train_labels)
-    train_dataloader = DataLoader(train_dataset,batch_size=batch_size, shuffle=True)
+    train_dataset = MyDataset(train_corpus, train_labels)
+    train_loader  = DataLoader(train_dataset,batch_size=batch_size, shuffle=True)
 
-    test_dataset    = MyDataset(test_corpus, test_labels)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    test_dataset = MyDataset(test_corpus, test_labels)
+    test_loader  = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     
     lr     = 0.001
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     opt   = torch.optim.Adam(model.parameters(),lr=lr)
 
     for epoch in range(epochs):
-        for batch_wordemb, batch_label in tqdm(train_dataloader):
+        for batch_wordemb, batch_label in tqdm(train_loader):
             batch_wordemb = batch_wordemb.to(device)
             batch_label   = batch_label.to(device)
 
@@ -139,7 +139,7 @@ if __name__ == "__main__":
             opt.zero_grad()
 
         right_num = 0
-        for batch_wordemb, batch_label in test_dataloader:
+        for batch_wordemb, batch_label in test_loader:
             batch_wordemb = batch_wordemb.to(device)
             batch_label   = batch_label.to(device)
             
